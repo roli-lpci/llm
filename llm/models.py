@@ -2139,6 +2139,19 @@ class AsyncResponse(_BaseResponse):
     model: "AsyncModel"
     conversation: Optional["AsyncConversation"] = None
 
+    def log_to_db(self, db):
+        """Record this completed response in a log database.
+
+        Call this after awaiting the response, for example with
+        ``await response.text()``. Like the synchronous response API, this
+        performs the database write immediately.
+        """
+        if not self._done:
+            raise ValueError(
+                "Response not yet awaited — call `await response` before log_to_db()"
+            )
+        self._to_sync_response().log_to_db(db)
+
     async def reply(
         self,
         prompt: str | None = None,
@@ -2630,6 +2643,9 @@ class AsyncResponse(_BaseResponse):
 
     async def to_sync_response(self) -> Response:
         await self._force()
+        return self._to_sync_response()
+
+    def _to_sync_response(self) -> Response:
         # This conversion might be tricky if the model is AsyncModel,
         # as Response expects a sync Model. For simplicity, we'll assume
         # the primary use case is data transfer after completion.

@@ -1528,6 +1528,35 @@ class TestAsyncLogging:
         assert parts[0].provider_metadata == {"anthropic": {"signature": "SIG"}}
         assert store.verify() == []
 
+    @pytest.mark.asyncio
+    async def test_async_response_log_to_db(self, store, async_mock_model):
+        self.enqueue_reasoning(async_mock_model)
+        conversation = async_mock_model.conversation()
+        response = conversation.prompt("q")
+        await response.text()
+
+        response.log_to_db(store.db)
+
+        turn = next(iter(store.db["turns"].rows))
+        assert turn["id"] == response.id
+        assert turn["thread_id"] == conversation.id
+        parts = store.load_chain(turn["tip_message_hash"])[-1].parts
+        assert [type(part).__name__ for part in parts] == [
+            "ReasoningPart",
+            "TextPart",
+        ]
+        assert parts[0].provider_metadata == {"anthropic": {"signature": "SIG"}}
+        assert store.verify() == []
+
+    @pytest.mark.asyncio
+    async def test_async_response_log_to_db_requires_completion(
+        self, store, async_mock_model
+    ):
+        response = async_mock_model.prompt("q")
+
+        with pytest.raises(ValueError, match="Response not yet awaited"):
+            response.log_to_db(store.db)
+
 
 # ---- llm logs against the new tables ---------------------------------
 
